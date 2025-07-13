@@ -1,0 +1,9 @@
+.env
+*.log
+__pycache__/
+*.pyc
+*.db
+venv/
+*.code-workspace
+backup/
+backend/

@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Customer Login{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <style>
+        .navbar {
+            padding: 1rem 0;
+            background-color: var(--bs-body-bg);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            transition: background-color 0.3s;
+        }
+        .navbar-brand img {
+            max-height: 36px;
+            max-width: 120px;
+            object-fit: contain;
+        }
+        .navbar-nav .nav-link {
+            margin: 0 0.5rem;
+            font-weight: 500;
+        }
+        .navbar-nav .nav-link.active {
+            font-weight: 600;
+            color: var(--bs-primary);
+        }
+        .navbar-toggler {
+            border: none;
+        }
+        #theme-toggle {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+        }
+        .nav-item {
+            margin: 0 0.25rem;
+        }
+
+        body {
+            background-color: var(--bs-body-bg) !important;
+            color: var(--bs-body-color) !important;
+        }
+        .container {
+            background: transparent !important;
+        }
+        h1, h2, h3, h4, h5, h6 {
+            color: var(--bs-body-color) !important;
+        }
+        hr {
+            border-color: var(--bs-border-color, #dee2e6) !important;
+        }
+        footer {
+            background-color: var(--bs-body-bg) !important;
+            color: var(--bs-body-color) !important;
+        }
+        footer {
+            background-color: var(--bs-body-bg) !important;
+            color: var(--bs-body-color) !important;
+        }
+    </style>
+</head>
+<body style="overflow-x: hidden; overflow-y: auto;">
+    <nav class="navbar navbar-expand-lg py-3 border-bottom" style="background-color: var(--bs-body-bg);">
+        <div class="container-fluid px-2 px-sm-3">
+            <a class="navbar-brand d-flex align-items-center gap-2" href="{{ url_for('dashboard') if session.get('user') else url_for('login') }}">
+                <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Logo" onerror="this.style.display='none'">
+                <!-- No logo inversion needed since filter is removed -->
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto align-items-center">
+                    <li class="nav-item">
+                      <button id="theme-toggle" class="btn nav-link p-0 me-2" title="Toggle dark/light mode" aria-label="Toggle dark/light mode">
+                          <span id="theme-icon">
+                              <i id="icon-sun" class="bi bi-sun"></i>
+                              <i id="icon-moon" class="bi bi-moon" style="display:none;"></i>
+                          </span>
+                      </button>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}" aria-current="page" href="{{ url_for('dashboard') if session.get('user') else url_for('login') }}">Home</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'transactions' %}active{% endif %}" href="{{ url_for('transactions') }}">Transaction History</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'usage_history' %}active{% endif %}" href="{{ url_for('usage_history') }}">Usage</a>
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'about' %}active{% endif %}" href="{{ url_for('about') }}">About</a>
+                    </li>
+                    {% if session.get('username') %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('logout') }}">Logout</a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+    <script>
+        const themeToggle = document.getElementById('theme-toggle');
+        const iconSun = document.getElementById('icon-sun');
+        const iconMoon = document.getElementById('icon-moon');
+
+        function getPreferredTheme() {
+            const stored = localStorage.getItem('theme');
+            if (stored) return stored;
+            if (window.matchMedia('(prefers-color-scheme: dark)').matches) return 'dark';
+            return 'light';
+        }
+
+        function setTheme(mode) {
+            const html = document.documentElement;
+            if (mode === 'dark') {
+                html.setAttribute('data-bs-theme', 'dark');
+                iconSun.style.display = 'none';
+                iconMoon.style.display = 'inline-block';
+                localStorage.setItem('theme', 'dark');
+            } else {
+                html.setAttribute('data-bs-theme', 'light');
+                iconSun.style.display = 'inline-block';
+                iconMoon.style.display = 'none';
+                localStorage.setItem('theme', 'light');
+            }
+        }
+
+        if (themeToggle) {
+            themeToggle.addEventListener('click', function() {
+                const currentTheme = getPreferredTheme();
+                setTheme(currentTheme === 'light' ? 'dark' : 'light');
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            setTheme(getPreferredTheme());
+        });
+    </script>
+
+    <div class="container">
+        <!-- Your page content here -->
