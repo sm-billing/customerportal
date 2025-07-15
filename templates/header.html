@@ -89,7 +89,7 @@
                         <a class="nav-link {% if request.endpoint == 'transactions' %}active{% endif %}" href="{{ url_for('transactions') }}">Transaction History</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'usage_history' %}active{% endif %}" href="{{ url_for('usage_history') }}">Usage</a>
+                        <a class="nav-link {% if request.endpoint == 'usage_history' %}active{% endif %}" href="{{ url_for('session_history') }}">Session History</a>
                     <li class="nav-item">
                         <a class="nav-link {% if request.endpoint == 'about' %}active{% endif %}" href="{{ url_for('about') }}">About</a>
                     </li>

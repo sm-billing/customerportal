@@ -1,15 +1,17 @@
 {% extends 'base.html' %}
-{% block title %}PPP Usage History{% endblock %}
+{% block title %}PPP Session History{% endblock %}
 {% block content %}
 <div class="container py-5 mb-5">
-  <h2 class="mb-4 fw-bold text-center">Daily Usage History</h2>
+  <h2 class="mb-4 fw-bold text-center">Session History</h2>
   <hr>
   {% if usage_days %}
     <div class="table-responsive">
       <table class="table table-striped table-bordered table-hover align-middle">
         <thead class="table-light">
           <tr class="text-center">
-            <th>Date</th>
+            <th>Start Time</th>
+            <th>End Time</th>
+            <th>Uptime</th>
             <th>Upload</th>
             <th>Download</th>
             <th>Total</th>
@@ -18,10 +20,12 @@
         <tbody>
           {% for row in usage_days %}
           <tr class="text-center">
-            <td>{{ row.day }}</td>
-            <td>{{ row.rx_mb | round(2) }} MB</td>
-            <td>{{ row.tx_mb | round(2) }} MB</td>
-            <td><strong>{{ row.total_mb | round(2) }} MB</strong></td>
+            <td>{{ row.start_time }}</td>
+            <td>{{ row.end_time }}</td>
+            <td>{{ row.uptime_str }}</td>
+            <td>{{ row.rx_mb }} MB</td>
+            <td>{{ row.tx_mb }} MB</td>
+            <td><strong>{{ row.total_mb }} MB</strong></td>
           </tr>
           {% endfor %}
         </tbody>
@@ -29,7 +33,7 @@
     </div>
   {% else %}
     <div class="alert alert-info text-center">
-      <i class="bi bi-info-circle-fill"></i> No usage data available.
+      <i class="bi bi-info-circle-fill"></i> No session data available.
     </div>
   {% endif %}
 </div>

@@ -5,9 +5,9 @@ import mysql.connector
 import login as login_module
 import dbconn
 from transactions import get_all_transactions
-from datetime import datetime
+from datetime import datetime, timedelta
 from librouteros import connect
-from datetime import datetime
+
 
 # Load environment variables
 load_dotenv()
@@ -53,8 +53,9 @@ def connect_to_router():
 
 
 ########## Session History ##########
-@app.route('/usage')
-def usage_history():
+
+@app.route('/session')
+def session_history():
     if 'username' not in session:
         return redirect(url_for('login'))
 
@@ -63,19 +64,27 @@ def usage_history():
         conn = get_db_conn()
         cur = conn.cursor(dictionary=True)
         cur.execute("""
-            SELECT day, rx_mb, tx_mb, total_mb
-            FROM ppp_usage_daily
+            SELECT start_time, end_time, rx_bytes, tx_bytes
+            FROM ppp_session
             WHERE name = %s
-            ORDER BY day DESC
+            ORDER BY end_time DESC
             LIMIT 30
         """, (username,))
-        usage_days = cur.fetchall()
+        sessions = cur.fetchall()
         cur.close()
 
-        return render_template("usage.html", usage_days=usage_days, username=username)
+        for row in sessions:
+            row['rx_mb'] = round(row['rx_bytes'] / 1024**2, 2)
+            row['tx_mb'] = round(row['tx_bytes'] / 1024**2, 2)
+            row['total_mb'] = round(row['rx_mb'] + row['tx_mb'], 2)
+            uptime_seconds = int((row['end_time'] - row['start_time']).total_seconds())
+            row['uptime_str'] = str(timedelta(seconds=uptime_seconds))
+
+        return render_template("session_history.html", usage_days=sessions, username=username)
 
     except Exception as e:
         return f"❌ Error: {str(e)}", 500
+
 
 
 
@@ -126,6 +135,10 @@ def login():
 
 from datetime import datetime
 
+
+
+
+
 @app.route('/dashboard')
 def dashboard():
     if 'username' not in session:
@@ -135,7 +148,9 @@ def dashboard():
     package_info = get_package_info(username)
     recharged_on, recharged_time = get_last_recharge(username)
     valid_till, valid_till_status = get_valid_till(username)
-    monthly_usage, latest_duration = get_monthly_usage(username)
+
+    # ✅ FIXED HERE: only unpack one value
+    monthly_usage = get_monthly_usage(username)
 
     current_month = datetime.now().strftime('%B')  # e.g. "July"
 
@@ -148,9 +163,9 @@ def dashboard():
         valid_till=valid_till,
         valid_till_status=valid_till_status,
         monthly_usage=monthly_usage,
-        latest_duration=latest_duration,
-        current_month=current_month  # ✅ pass it to template
+        current_month=current_month
     )
+
 
 
 
@@ -252,33 +267,34 @@ def get_valid_till(username):
     return None, 'expired'
 
 
-def get_monthly_usage(username):
+
+
+def get_monthly_usage(name):
     conn = get_db_conn()
     cur = conn.cursor(dictionary=True)
 
-    # 1. Get monthly total from daily summary table
+    # Sum usage from ppp_daily (this month's entries)
     cur.execute("""
-        SELECT SUM(rx_mb) AS total_rx, SUM(tx_mb) AS total_tx
-        FROM ppp_usage_daily
-        WHERE name = %s AND MONTH(day) = MONTH(CURDATE()) AND YEAR(day) = YEAR(CURDATE())
-    """, (username,))
-    row = cur.fetchone()
-    total_mb = (row['total_rx'] or 0) + (row['total_tx'] or 0)
-    formatted_usage = f"{total_mb / 1024:.2f} GB" if total_mb >= 1024 else f"{total_mb:.2f} MB"
-
-    # 2. Get latest session's duration
-    cur.execute("""
-        SELECT duration_min
-        FROM ppp_usage_session
+        SELECT total
+        FROM ppp_daily
         WHERE name = %s
-        ORDER BY end_time DESC
-        LIMIT 1
-    """, (username,))
-    row2 = cur.fetchone()
-    latest_duration = row2['duration_min'] if row2 else 0
-
+          AND date >= DATE_FORMAT(CURDATE(), '%%Y-%%m-01')
+          AND date <= CURDATE()
+    """, (name,))
+    rows = cur.fetchall()
     cur.close()
-    return formatted_usage, latest_duration
+
+    total_mb = 0
+
+    for row in rows:
+        if not row['total']:
+            continue
+        value, unit = row['total'].split()
+        mb = float(value) * 1024 if unit.upper() == 'GB' else float(value)
+        total_mb += mb
+
+    return f"{total_mb / 1024:.2f} GB" if total_mb >= 1024 else f"{total_mb:.2f} MB"
+
 
 
 

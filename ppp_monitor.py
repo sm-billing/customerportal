@@ -7,7 +7,9 @@ Objective:
 2. Insert or update ppp_session based on last-link-up-time.
    - If same as existing session start_time: update rx/tx and end_time.
    - Else: insert new session.
+   - Store uptime = (end_time - start_time).seconds
    - Keep only last 24 sessions per user.
+3. Update ppp_daily by summing rx+tx for sessions ending today.
 """
 
 import os
@@ -45,6 +47,34 @@ def connect_router():
         port=int(os.getenv("ROUTER_PORT", 8728))
     )
 
+def human_readable_mb(bytes_val):
+    mb = bytes_val / 1024**2
+    return f"{round(mb / 1024, 2)} GB" if mb >= 1024 else f"{round(mb, 2)} MB"
+
+def update_daily_usage(cur):
+    today = datetime.date.today()
+    now = datetime.datetime.now()
+
+    cur.execute("""
+        SELECT name, DATE(end_time) AS day,
+               SUM(rx_bytes + tx_bytes) AS total_bytes
+        FROM ppp_session
+        WHERE DATE(end_time) = %s
+        GROUP BY name, day
+    """, (today,))
+
+    rows = cur.fetchall()
+
+    for row in rows:
+        readable_total = human_readable_mb(row["total_bytes"])
+        cur.execute("""
+            INSERT INTO ppp_daily (name, date, total, updated_at)
+            VALUES (%s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE
+              total = VALUES(total),
+              updated_at = VALUES(updated_at)
+        """, (row["name"], row["day"], readable_total, now))
+
 def main():
     now = datetime.datetime.now()
     api  = connect_router()
@@ -73,6 +103,8 @@ def main():
             logging.warning(f"Invalid link-up time for {user}: {linkup}")
             continue
 
+        uptime = int((now - linkup).total_seconds())
+
         # ─── Step 1: Update ppp_raw ─────────────────────────────────────────────
         cur.execute("""
             REPLACE INTO ppp_raw (name, rx_bytes, tx_bytes, last_link_up_time, measured_at)
@@ -93,15 +125,16 @@ def main():
                 UPDATE ppp_session
                 SET rx_bytes = %s,
                     tx_bytes = %s,
-                    end_time = %s
+                    end_time = %s,
+                    uptime = %s
                 WHERE id = %s
-            """, (rx, tx, now, session['id']))
+            """, (rx, tx, now, uptime, session['id']))
         else:
             # Insert new session
             cur.execute("""
-                INSERT INTO ppp_session (name, rx_bytes, tx_bytes, start_time, end_time)
-                VALUES (%s, %s, %s, %s, %s)
-            """, (user, rx, tx, linkup, now))
+                INSERT INTO ppp_session (name, rx_bytes, tx_bytes, start_time, end_time, uptime)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (user, rx, tx, linkup, now, uptime))
 
         # ─── Step 3: Keep only last 24 sessions per user ────────────────────────
         cur.execute("""
@@ -116,10 +149,12 @@ def main():
             )
         """, (user, user))
 
+    # ─── Step 4: Update Daily Usage Summary ────────────────────────────────────
+    update_daily_usage(cur)
+
     conn.commit()
     conn.close()
-    logging.info("✅ Completed ppp_raw and ppp_session updates.")
+    logging.info("✅ Completed ppp_raw, ppp_session, and ppp_daily updates.")
 
 if __name__ == "__main__":
     main()
-# ─── END OF SCRIPT ───────────────────────────────────────────────────────────
