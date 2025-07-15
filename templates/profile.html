@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block title %}Edit Profile{% endblock %}
+{% block content %}
+<div class="container py-5">
+  <h2 class="mb-4">Edit Profile</h2>
+  <form method="POST" enctype="multipart/form-data">
+    
+    <div class="mb-3">
+      <label class="form-label">Profile Picture</label><br>
+      {% if customer.profile_image %}
+        <img src="{{ url_for('static', filename='profile_pics/' + customer.profile_image) }}" width="80" class="rounded-circle mb-2">
+      {% endif %}
+      <input type="file" name="profile_image" class="form-control">
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label">Username</label>
+      <input type="text" name="username" value="{{ customer.username }}" class="form-control" required readonly>
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label">Full Name</label>
+      <input type="text" name="fullname" value="{{ customer.fullname }}" class="form-control" required>
+    </div>
+
+    <div class="mb-3">
+      <label class="form-label">Email</label>
+      <input type="email" name="email" value="{{ customer.email }}" class="form-control" required>
+    </div>
+    
+    <div class="mb-3">
+      <label class="form-label">Phone Number</label>
+      <input type="text" name="phonenumber" value="{{ customer.phonenumber }}" class="form-control" required>
+    </div>
+    
+    <div class="mb-3">
+      <label class="form-label">Address</label>
+      <input type="text" name="address" value="{{ customer.address }}" class="form-control">
+    </div>
+    
+
+    
+    <button type="submit" class="btn btn-primary">Update Profile</button>
+  </form>
+</div>
+{% endblock %}

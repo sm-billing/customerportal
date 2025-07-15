@@ -44,19 +44,19 @@
           <div class="table-like">
             <div class="row fw-semibold">
               <div class="col-6 text-start">Name</div>
-              <div class="col-6 text-start">{{ customer.fullname }}</div>
+              <div class="col-6 text-start text-muted">{{ customer.fullname }}</div>
             </div>
             <div class="row fw-semibold">
               <div class="col-6 text-start">ID</div>
-              <div class="col-6 text-start text-muted">{{ customer.username }}</div>
+              <div class="col-6 text-start">{{ customer.username }}</div>
             </div>
             <div class="row fw-semibold">
               <div class="col-6 text-start">Active Package</div>
-              <div class="col-6 text-start">{{ package_info.namebp if package_info else '-' }}_525BDT</div>
+              <div class="col-6 text-start text-muted">{{ package_info.namebp if package_info else '-' }}_525BDT</div>
             </div>
             <div class="row fw-semibold">
               <div class="col-6 text-start">Available Balance</div>
-              <div class="col-6 text-start text-muted">{{ customer.balance }} BDT</div>
+              <div class="col-6 text-start">{{ customer.balance }} BDT</div>
             </div>
           </div>
           <hr>
@@ -124,7 +124,7 @@
     </div>
 
     <div class="col-md-5 col-lg-4">
-      <a href="{{ url_for('session_history') }}" class="text-decoration-none">
+        <a href="{{ url_for('session_history') }}" class="text-decoration-none">
         <div class="card h-100 text-center hover-shadow">
           <div class="card-body d-flex flex-column justify-content-center">
             <div class="d-flex justify-content-center mb-4">
@@ -138,10 +138,10 @@
             <div class="mb-3">
               <div class="display-5 fw-bold text-primary">{{ monthly_usage }}</div>
             </div>
-            
-          </div>
+          </a>
+         </div>
         </div>
-      </a>
+      
     </div>
 
   </div>

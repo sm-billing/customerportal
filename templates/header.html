@@ -60,6 +60,9 @@
             background-color: var(--bs-body-bg) !important;
             color: var(--bs-body-color) !important;
         }
+        .dropdown-profile {
+            min-width: 200px;
+        }
     </style>
 </head>
 <body style="overflow-x: hidden; overflow-y: auto;">
@@ -89,19 +92,45 @@
                         <a class="nav-link {% if request.endpoint == 'transactions' %}active{% endif %}" href="{{ url_for('transactions') }}">Transaction History</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link {% if request.endpoint == 'usage_history' %}active{% endif %}" href="{{ url_for('session_history') }}">Session History</a>
+                        <a class="nav-link {% if request.endpoint == 'session_history' %}active{% endif %}" href="{{ url_for('session_history') }}">Session History</a>
+                    </li>
                     <li class="nav-item">
                         <a class="nav-link {% if request.endpoint == 'about' %}active{% endif %}" href="{{ url_for('about') }}">About</a>
                     </li>
+
                     {% if session.get('username') %}
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('logout') }}">Logout</a>
+                    <li class="nav-item dropdown ms-3">
+                        <a href="#" class="d-flex align-items-center text-decoration-none dropdown-toggle"
+                        id="profileDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+
+                            {% if customer.profile_image %}
+                            <img src="{{ url_for('static', filename='profile_pics/' + customer.profile_image) }}"
+                                alt="profile" width="36" height="36" class="rounded-circle me-2">
+                            {% else %}
+                            <img src="https://ui-avatars.com/api/?name={{ customer.fullname|urlencode }}&background=0D8ABC&color=fff&rounded=true&size=64"
+                                alt="avatar" width="36" height="36" class="rounded-circle me-2">
+                            {% endif %}
+                        </a>
+
+                        <ul class="dropdown-menu dropdown-profile dropdown-menu-end text-small" aria-labelledby="profileDropdown">
+                            <li class="px-3 py-2">
+                                <div class="fw-semibold">{{ customer.fullname }}</div>
+                                <div class="text-muted small fw-bold">{{ customer.username }}</div>
+                                <div class="text-muted small">{{ customer.phonenumber }}</div>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('profile') }}">✏ Edit Profile</a></li>
+                            <li><a class="dropdown-item text-danger" href="{{ url_for('logout') }}">🚪 Logout</a></li>
+                        </ul>
                     </li>
                     {% endif %}
                 </ul>
             </div>
         </div>
     </nav>
+
+<!------------------------------ Script Section ----------------------------------->
+
     <script>
         const themeToggle = document.getElementById('theme-toggle');
         const iconSun = document.getElementById('icon-sun');

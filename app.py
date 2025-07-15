@@ -16,13 +16,6 @@ app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "fallback_secret_key")  # Secure secret key
 
 
-
-
-
-
-
-
-
 ########## Unified DB Connection ##########
 def get_db_conn():
     return mysql.connector.connect(
@@ -47,12 +40,46 @@ def connect_to_router():
 
 
 
+######################################################## Authentication ###############################################################
+#######################################################################################################################################
+
+# ------------------------------------------- @app.route('/') ------------------------------------------------ #
+
+@app.route('/', methods=['GET', 'POST'])
+def login():
+    if 'username' in session:
+        return redirect(url_for('dashboard'))
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        success, error = login_module.login_function(request, render_template)
+        if success:
+            session['username'] = username
+            return redirect(url_for('dashboard'))
+        else:
+            flash(error or 'Invalid username or password', 'danger')
+    return render_template('login.html')
+
+from datetime import datetime
 
 
+# ------------------------------------------- @app.route('/router-status') ------------------------------------------------ #
+
+@app.route('/router-status')
+def router_status():
+    if 'username' not in session:
+        return redirect(url_for('login'))
+
+    try:
+        api = connect_to_router()
+        active_ppp = api.path("ppp", "active").get()
+        return render_template("router_status.html", ppp_sessions=active_ppp)
+
+    except Exception as e:
+        return f"❌ Router Connection Error: {str(e)}", 500
 
 
-
-########## Session History ##########
+# ------------------------------------------- @app.route('/session') ------------------------------------------------ #
 
 @app.route('/session')
 def session_history():
@@ -60,6 +87,7 @@ def session_history():
         return redirect(url_for('login'))
 
     username = session['username']
+    customer = get_customer_info(username)
     try:
         conn = get_db_conn()
         cur = conn.cursor(dictionary=True)
@@ -80,7 +108,7 @@ def session_history():
             uptime_seconds = int((row['end_time'] - row['start_time']).total_seconds())
             row['uptime_str'] = str(timedelta(seconds=uptime_seconds))
 
-        return render_template("session_history.html", usage_days=sessions, username=username)
+        return render_template("session_history.html", usage_days=sessions, username=username, customer=customer)
 
     except Exception as e:
         return f"❌ Error: {str(e)}", 500
@@ -88,56 +116,7 @@ def session_history():
 
 
 
-
-
-
-
-
-
-
-########## Router Status Page (optional) ##########
-@app.route('/router-status')
-def router_status():
-    if 'username' not in session:
-        return redirect(url_for('login'))
-
-    try:
-        api = connect_to_router()
-        active_ppp = api.path("ppp", "active").get()
-        return render_template("router_status.html", ppp_sessions=active_ppp)
-
-    except Exception as e:
-        return f"❌ Router Connection Error: {str(e)}", 500
-
-
-
-
-
-
-
-
-
-########## Authentication ##########
-@app.route('/', methods=['GET', 'POST'])
-def login():
-    if 'username' in session:
-        return redirect(url_for('dashboard'))
-    if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
-        success, error = login_module.login_function(request, render_template)
-        if success:
-            session['username'] = username
-            return redirect(url_for('dashboard'))
-        else:
-            flash(error or 'Invalid username or password', 'danger')
-    return render_template('login.html')
-
-from datetime import datetime
-
-
-
-
+# ------------------------------------------- @app.route('/dashboard') ------------------------------------------------ #
 
 @app.route('/dashboard')
 def dashboard():
@@ -167,11 +146,69 @@ def dashboard():
     )
 
 
+# ------------------------------------------- @app.route('/profile') ------------------------------------------------ #
+
+@app.route('/profile', methods=['GET', 'POST'])
+def profile():
+    if 'username' not in session:
+        return redirect(url_for('login'))
+
+    username = session['username']
+    conn = get_db_conn()
+    cur = conn.cursor(dictionary=True)
+
+    if request.method == 'POST':
+        fullname = request.form.get('fullname')
+        email = request.form.get('email')
+        address = request.form.get('address')
+        file = request.files.get('profile_image')
+
+        # Basic validation
+        if not fullname or not email:
+            flash("Full name and email are required.", "danger")
+            return redirect(url_for('profile'))
+
+        # Update customer info
+        cur.execute("""
+            UPDATE tbl_customers
+            SET fullname=%s, email=%s, address=%s
+            WHERE username=%s
+        """, (fullname, email, address, username))
+
+        # Handle image upload and update ppp_image
+        if file and file.filename:
+            ext = os.path.splitext(file.filename)[1].lower()
+            profile_image = f"{username}{ext}"
+            filepath = os.path.join('static/profile_pics', profile_image)
+            file.save(filepath)
+
+            cur.execute("""
+                INSERT INTO ppp_image (username, filename, uploaded_at)
+                VALUES (%s, %s, NOW())
+                ON DUPLICATE KEY UPDATE
+                    filename = VALUES(filename),
+                    uploaded_at = VALUES(uploaded_at)
+            """, (username, profile_image))
+
+        conn.commit()
+        flash("✅ Profile updated successfully!", "success")
+        return redirect(url_for('profile'))
+
+    # GET method: fetch user data + image
+    cur.execute("""
+        SELECT c.*, i.filename AS profile_image
+        FROM tbl_customers c
+        LEFT JOIN ppp_image i ON c.username = i.username
+        WHERE c.username = %s
+    """, (username,))
+    customer = cur.fetchone()
+    cur.close()
+    return render_template('profile.html', customer=customer)
 
 
 
 
-
+# ------------------------------------------- @app.route('/transactions') ------------------------------------------------ #
 
 @app.route('/transactions')
 def transactions():
@@ -190,9 +227,19 @@ def transactions():
         valid_till=valid_till
     )
 
+
+# ------------------------------------------- @app.route('/about') ------------------------------------------------ #
+
 @app.route('/about')
 def about():
-    return render_template('about.html')
+    if 'username' not in session:
+        return redirect(url_for('login'))
+    username = session['username']
+    customer = get_customer_info(username)
+    return render_template('about.html', username=username, customer=customer)
+
+
+# ------------------------------------------- @app.route('/logout') ------------------------------------------------ #
 
 @app.route('/logout')
 def logout():
@@ -206,14 +253,27 @@ def logout():
 
 
 
-########## Supporting Functions ##########
+############################################################# Supporting Functions ###########################################################
+##############################################################################################################################################
+
+# ---------------------------------------------------------------- get_customer_info(username) ----------------------------------------------------- #
+
 def get_customer_info(username):
     conn = dbconn.get_db_connection()
     cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT fullname, username, balance, email, address, phonenumber FROM tbl_customers WHERE username=%s", (username,))
+    cur.execute("""
+        SELECT c.fullname, c.username, c.balance, c.email, c.address, c.phonenumber,
+               i.filename AS profile_image
+        FROM tbl_customers c
+        LEFT JOIN ppp_image i ON c.username = i.username
+        WHERE c.username = %s
+    """, (username,))
     customer = cur.fetchone()
     cur.close()
     return customer
+
+
+# ---------------------------------------------------------------- get_package_info(username) ----------------------------------------------------- #
 
 def get_package_info(username):
     conn = dbconn.get_db_connection()
@@ -229,6 +289,9 @@ def get_package_info(username):
     cur.close()
     return package
 
+
+# ---------------------------------------------------------------- get_last_recharge(username) ----------------------------------------------------- #
+
 def get_last_recharge(username):
     conn = dbconn.get_db_connection()
     cur = conn.cursor(dictionary=True)
@@ -243,6 +306,9 @@ def get_last_recharge(username):
     if row:
         return row['recharged_on'], row['recharged_time']
     return None, None
+
+
+# ---------------------------------------------------------------- get_valid_till(username) ----------------------------------------------------- #
 
 def get_valid_till(username):
     conn = dbconn.get_db_connection()
@@ -268,6 +334,7 @@ def get_valid_till(username):
 
 
 
+# ------------------------------------------------------------------ get_monthly_usage(username) ----------------------------------------------------- #
 
 def get_monthly_usage(name):
     conn = get_db_conn()
@@ -298,14 +365,7 @@ def get_monthly_usage(name):
 
 
 
-
-
-
-
-
-
-
-
+# ------------------------------------------- Run Flask App ------------------------------------------------ #
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=3000, debug=True)
