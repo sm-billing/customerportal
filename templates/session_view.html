@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Session History</title>
+</head>
+<body>
+    <h2>Search Session History</h2>
+    <form method="POST">
+        <input type="text" name="username" placeholder="Enter username" required>
+        <button type="submit">Submit</button>
+    </form>
+
+    {% if sessions %}
+        <h3>Session History for {{ username }}</h3>
+        <table border="1">
+            <tr>
+                <th>Start Time</th>
+                <th>End Time</th>
+                <th>RX MB</th>
+                <th>TX MB</th>
+                <th>Duration (min)</th>
+            </tr>
+            {% for s in sessions %}
+            <tr>
+                <td>{{ s.start_time }}</td>
+                <td>{{ s.end_time }}</td>
+                <td>{{ '%.2f' % (s.rx_byte / 1024 / 1024) }}</td>
+                <td>{{ '%.2f' % (s.tx_byte / 1024 / 1024) }}</td>
+                <td>{{ s.duration_min }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+    {% endif %}
+</body>
+</html>
