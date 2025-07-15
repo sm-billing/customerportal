@@ -7,7 +7,6 @@ Objective:
 2. Insert or update ppp_session based on last-link-up-time.
    - If same as existing session start_time: update rx/tx and end_time.
    - Else: insert new session.
-   - Store uptime = (end_time - start_time).seconds
    - Keep only last 24 sessions per user.
 3. Update ppp_daily by summing rx+tx for sessions ending today.
 """
@@ -103,8 +102,6 @@ def main():
             logging.warning(f"Invalid link-up time for {user}: {linkup}")
             continue
 
-        uptime = int((now - linkup).total_seconds())
-
         # ─── Step 1: Update ppp_raw ─────────────────────────────────────────────
         cur.execute("""
             REPLACE INTO ppp_raw (name, rx_bytes, tx_bytes, last_link_up_time, measured_at)
@@ -120,21 +117,18 @@ def main():
         session = cur.fetchone()
 
         if session:
-            # Update existing session
             cur.execute("""
                 UPDATE ppp_session
                 SET rx_bytes = %s,
                     tx_bytes = %s,
-                    end_time = %s,
-                    uptime = %s
+                    end_time = %s
                 WHERE id = %s
-            """, (rx, tx, now, uptime, session['id']))
+            """, (rx, tx, now, session['id']))
         else:
-            # Insert new session
             cur.execute("""
-                INSERT INTO ppp_session (name, rx_bytes, tx_bytes, start_time, end_time, uptime)
-                VALUES (%s, %s, %s, %s, %s, %s)
-            """, (user, rx, tx, linkup, now, uptime))
+                INSERT INTO ppp_session (name, rx_bytes, tx_bytes, start_time, end_time)
+                VALUES (%s, %s, %s, %s, %s)
+            """, (user, rx, tx, linkup, now))
 
         # ─── Step 3: Keep only last 24 sessions per user ────────────────────────
         cur.execute("""
