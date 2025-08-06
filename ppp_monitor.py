@@ -7,8 +7,8 @@ Objective:
 2. Insert or update ppp_session based on last-link-up-time.
    - If same as existing session start_time: update rx/tx and end_time.
    - Else: insert new session.
-   - Keep only last 24 sessions per user.
-3. Update ppp_daily by summing rx+tx for sessions ending today.
+   - Keep only last 50 sessions per user.
+3. Update ppp_monthly by summing rx+tx for sessions ending this month.
 """
 
 import os
@@ -28,6 +28,10 @@ logging.basicConfig(
     level=logging.INFO,
     format='[%(asctime)s] %(levelname)s: %(message)s'
 )
+
+# Timezone for Bangladesh (GMT+6)
+from datetime import timezone, timedelta
+BD_TZ = timezone(timedelta(hours=6))
 
 def get_db_conn():
     return mysql.connector.connect(
@@ -50,32 +54,35 @@ def human_readable_mb(bytes_val):
     mb = bytes_val / 1024**2
     return f"{round(mb / 1024, 2)} GB" if mb >= 1024 else f"{round(mb, 2)} MB"
 
-def update_daily_usage(cur):
-    today = datetime.date.today()
-    now = datetime.datetime.now()
+def update_monthly_usage(cur):
+    now = datetime.datetime.now(BD_TZ)
+    month_str = now.strftime('%Y-%m')  # e.g. '2024-08'
+    first_day = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    # First day of next month
+    if first_day.month == 12:
+        next_month = first_day.replace(year=first_day.year+1, month=1, day=1)
+    else:
+        next_month = first_day.replace(month=first_day.month+1, day=1)
 
     cur.execute("""
-        SELECT name, DATE(end_time) AS day,
-               SUM(rx_bytes + tx_bytes) AS total_bytes
+        SELECT name, SUM(rx_bytes + tx_bytes) AS total_bytes
         FROM ppp_session
-        WHERE DATE(end_time) = %s
-        GROUP BY name, day
-    """, (today,))
+        WHERE end_time >= %s AND end_time < %s
+        GROUP BY name
+    """, (first_day, next_month))
 
     rows = cur.fetchall()
-
     for row in rows:
-        readable_total = human_readable_mb(row["total_bytes"])
         cur.execute("""
-            INSERT INTO ppp_daily (name, date, total, updated_at)
+            INSERT INTO ppp_monthly (name, month, total_bytes, updated_at)
             VALUES (%s, %s, %s, %s)
             ON DUPLICATE KEY UPDATE
-              total = VALUES(total),
-              updated_at = VALUES(updated_at)
-        """, (row["name"], row["day"], readable_total, now))
+                total_bytes = VALUES(total_bytes),
+                updated_at = VALUES(updated_at)
+        """, (row['name'], month_str, row['total_bytes'], now))
 
 def main():
-    now = datetime.datetime.now()
+    now = datetime.datetime.now(BD_TZ)
     api  = connect_router()
     conn = get_db_conn()
     cur  = conn.cursor(dictionary=True)
@@ -94,12 +101,21 @@ def main():
         if not linkup:
             continue
 
-        # Parse RouterOS link-up time
+        # Parse RouterOS link-up time and force it to BD time if naive
         try:
             if isinstance(linkup, str):
                 linkup = datetime.datetime.fromisoformat(linkup)
-        except ValueError:
+            if linkup.tzinfo is None:
+                linkup = linkup.replace(tzinfo=BD_TZ)
+            else:
+                linkup = linkup.astimezone(BD_TZ)
+        except Exception:
             logging.warning(f"Invalid link-up time for {user}: {linkup}")
+            continue
+
+        # Ensure end_time (now) is always >= linkup time
+        if now < linkup:
+            logging.warning(f"End time {now} is before start time {linkup} for user {user}, skipping session update.")
             continue
 
         # ─── Step 1: Update ppp_raw ─────────────────────────────────────────────
@@ -130,7 +146,7 @@ def main():
                 VALUES (%s, %s, %s, %s, %s)
             """, (user, rx, tx, linkup, now))
 
-        # ─── Step 3: Keep only last 24 sessions per user ────────────────────────
+        # ─── Step 3: Keep only last 50 sessions per user ────────────────────────
         cur.execute("""
             DELETE FROM ppp_session
             WHERE name = %s AND id NOT IN (
@@ -138,17 +154,17 @@ def main():
                     SELECT id FROM ppp_session
                     WHERE name = %s
                     ORDER BY start_time DESC
-                    LIMIT 24
+                    LIMIT 50
                 ) AS keep_ids
             )
         """, (user, user))
 
-    # ─── Step 4: Update Daily Usage Summary ────────────────────────────────────
-    update_daily_usage(cur)
+    # ─── Step 4: Update Monthly Usage Summary ──────────────────────────────────
+    update_monthly_usage(cur)
 
     conn.commit()
     conn.close()
-    logging.info("✅ Completed ppp_raw, ppp_session, and ppp_daily updates.")
+    logging.info("✅ Completed ppp_raw, ppp_session, and ppp_monthly updates.")
 
 if __name__ == "__main__":
     main()

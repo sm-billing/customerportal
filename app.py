@@ -1,3 +1,4 @@
+
 from flask import Flask, request, render_template, session, redirect, url_for, flash, send_file, abort
 from dotenv import load_dotenv
 import os
@@ -62,6 +63,8 @@ def login():
             return redirect(url_for('login'))
     return render_template('login.html')
 
+    
+
 
 # ------------------------------------------- @app.route('/router-status') ------------------------------------------------ #
 
@@ -76,7 +79,7 @@ def router_status():
         return render_template("router_status.html", ppp_sessions=active_ppp)
 
     except Exception as e:
-        return f"❌ Router Connection Error: {str(e)}", 500
+        return f"Router Connection Error: {str(e)}", 500
 
 
 # ------------------------------------------- @app.route('/session') ------------------------------------------------ #
@@ -111,7 +114,7 @@ def session_history():
         return render_template("session_history.html", usage_days=sessions, username=username, customer=customer)
 
     except Exception as e:
-        return f"❌ Error: {str(e)}", 500
+        return f"Error: {str(e)}", 500
 
 
 
@@ -128,7 +131,7 @@ def dashboard():
     recharged_on, recharged_time = get_last_recharge(username)
     valid_till, valid_till_status = get_valid_till(username)
 
-    # ✅ FIXED HERE: only unpack one value
+    # FIXED HERE: only unpack one value
     monthly_usage = get_monthly_usage(username)
 
     current_month = datetime.now().strftime('%B')  # e.g. "July"
@@ -191,7 +194,7 @@ def profile():
             """, (username, profile_image))
 
         conn.commit()
-        flash("✅ Profile updated successfully!", "success")
+        flash("Profile updated successfully!", "success")
         return redirect(url_for('profile'))
 
     # GET method: fetch user data + image
@@ -340,32 +343,24 @@ def get_monthly_usage(name):
     from datetime import datetime
     conn = get_db_conn()
     cur = conn.cursor(dictionary=True)
-    # Get the 1st day of this month
-    first_day = datetime.now().replace(day=1).date()
+    month_str = datetime.now().strftime('%Y-%m')  # e.g. '2024-08'
 
-    # Select only this month's rows
     cur.execute("""
-        SELECT total, date FROM ppp_daily
-        WHERE name = %s AND date >= %s AND date <= CURDATE()
-    """, (name, first_day))
+        SELECT total_bytes FROM ppp_monthly
+        WHERE name = %s AND month = %s
+    """, (name, month_str))
 
-    rows = cur.fetchall()
+    row = cur.fetchone()
     cur.close()
 
-    total_mb = 0
-    for row in rows:
-        if not row['total']:
-            continue
-        value, unit = row['total'].strip().split()
-        mb = float(value) * 1024 if unit.upper() == 'GB' else float(value)
-        total_mb += mb
-
-    # Return GB if total is more than 1024 MB, otherwise MB
-    return f"{total_mb / 1024:.2f} GB" if total_mb >= 1024 else f"{total_mb:.2f} MB"
+    if row and row['total_bytes'] is not None:
+        total_gb = row['total_bytes'] / 1024 / 1024 / 1024
+        return f"{total_gb:.2f} GB"
+    return "0.00 GB"
 
 
 
 # ------------------------------------------- Run Flask App ------------------------------------------------ #
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=3000, debug=True)
+    app.run(host='0.0.0.0', port= 3000, debug=False)
