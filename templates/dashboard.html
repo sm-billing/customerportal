@@ -148,23 +148,6 @@
 </div>
 {% endblock %}
 {% block scripts %}
-<!-- Toast container -->
-<div aria-live="polite" aria-atomic="true" class="position-fixed top-0 end-0 p-3" style="z-index: 1080; min-width: 320px;">
-  {% with messages = get_flashed_messages(with_categories=true) %}
-    {% for category, message in messages %}
-      {% if category == 'success' %}
-      <div id="toast-success" class="toast align-items-center text-bg-success border-0 show" role="alert" data-bs-delay="3500" style="min-width: 300px;">
-        <div class="d-flex">
-          <div class="toast-body">
-            {{ message }}
-          </div>
-          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-        </div>
-      </div>
-      {% endif %}
-    {% endfor %}
-  {% endwith %}
-</div>
 <script>
   window.addEventListener('DOMContentLoaded', function () {
     var toastEl = document.getElementById('toast-success');

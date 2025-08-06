@@ -55,12 +55,12 @@ def login():
         success, error = login_module.login_function(request, render_template)
         if success:
             session['username'] = username
+            flash("Login successful!", "success")
             return redirect(url_for('dashboard'))
         else:
-            flash(error or 'Invalid username or password', 'danger')
+            flash(error or 'Login failed. Invalid username or password.', 'danger')
+            return redirect(url_for('login'))
     return render_template('login.html')
-
-from datetime import datetime
 
 
 # ------------------------------------------- @app.route('/router-status') ------------------------------------------------ #
@@ -337,31 +337,31 @@ def get_valid_till(username):
 # ------------------------------------------------------------------ get_monthly_usage(username) ----------------------------------------------------- #
 
 def get_monthly_usage(name):
+    from datetime import datetime
     conn = get_db_conn()
     cur = conn.cursor(dictionary=True)
+    # Get the 1st day of this month
+    first_day = datetime.now().replace(day=1).date()
 
-    # Sum usage from ppp_daily (this month's entries)
+    # Select only this month's rows
     cur.execute("""
-        SELECT total
-        FROM ppp_daily
-        WHERE name = %s
-          AND date >= DATE_FORMAT(CURDATE(), '%%Y-%%m-01')
-          AND date <= CURDATE()
-    """, (name,))
+        SELECT total, date FROM ppp_daily
+        WHERE name = %s AND date >= %s AND date <= CURDATE()
+    """, (name, first_day))
+
     rows = cur.fetchall()
     cur.close()
 
     total_mb = 0
-
     for row in rows:
         if not row['total']:
             continue
-        value, unit = row['total'].split()
+        value, unit = row['total'].strip().split()
         mb = float(value) * 1024 if unit.upper() == 'GB' else float(value)
         total_mb += mb
 
+    # Return GB if total is more than 1024 MB, otherwise MB
     return f"{total_mb / 1024:.2f} GB" if total_mb >= 1024 else f"{total_mb:.2f} MB"
-
 
 
 
